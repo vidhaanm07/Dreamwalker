@@ -6,7 +6,7 @@ A surreal, open-world 3D dream game that runs entirely in your browser. You wake
 
 ## ▶️ Play
 
-Once deployed with GitHub Pages: `https://<your-username>.github.io/dreamwalker/`
+Once deployed with GitHub Pages: `https://<vidhaanm07>.github.io/dreamwalker/`
 
 Or run it locally:
 
@@ -78,4 +78,4 @@ This repo includes a workflow at `.github/workflows/pages.yml`. To enable it:
 
 ## 📄 License
 
-MIT. See [LICENSE](LICENSE).
+Vidhaan Mathur. See [LICENSE](LICENSE).
