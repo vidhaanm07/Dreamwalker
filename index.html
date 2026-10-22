@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dreamwalker 3D: The Vast Dead City</title>
+<style>
+:root{ --accent:#7a8fae; --accent2:#e8b04b; --text:#d8dae8; --dim:#8a92ac; --card:#0f1120ee; }
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%; overflow:hidden; background:#05060d; font-family:Georgia,'Times New Roman',serif;}
+#gl{position:fixed; inset:0; touch-action:none;}
+.hud{position:fixed; z-index:5; color:var(--text); pointer-events:none;}
+#title{top:calc(env(safe-area-inset-top,0px) + 10px); left:0; right:0; text-align:center;}
+#title h1{font-size:1.1rem; color:var(--accent2); text-shadow:0 0 14px #e8b04b66; letter-spacing:1px;}
+#title .sub{font-size:.7rem; color:var(--dim); font-style:italic; margin-top:2px;}
+#journal{top:calc(env(safe-area-inset-top,0px) + 54px); left:10px; width:190px; background:var(--card); border:1px solid #2a2f45; border-radius:10px; padding:10px; pointer-events:auto; max-height:30vh; overflow-y:auto;}
+#journal h3{font-size:.6rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--dim); margin-bottom:6px;}
+.frag{color:var(--accent2); font-style:italic; font-size:.72rem; margin-bottom:5px; padding-left:7px; border-left:2px solid var(--accent);}
+.hint{color:var(--dim); font-size:.68rem; line-height:1.4;}
+#guide{top:calc(env(safe-area-inset-top,0px) + 54px); right:10px; width:160px; background:var(--card); border:1px solid #2a2f45; border-radius:10px; padding:10px; pointer-events:auto;}
+#guide h3{font-size:.6rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--dim); margin-bottom:6px;}
+#msg{bottom:calc(env(safe-area-inset-bottom,0px) + 150px); left:0; right:0; text-align:center; color:var(--accent2); font-size:.78rem; font-style:italic; min-height:18px;}
+#prompt{bottom:calc(env(safe-area-inset-bottom,0px) + 180px); left:0; right:0; text-align:center; display:none;}
+#prompt button{pointer-events:auto; background:#171a2ecc; border:1px solid var(--accent2); color:var(--accent2); padding:8px 16px; border-radius:20px; font-family:inherit; font-size:.82rem; cursor:pointer;}
+#joy{position:fixed; z-index:6; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); left:16px; width:110px; height:110px; border-radius:50%; background:#ffffff10; border:1px solid #ffffff30; touch-action:none;}
+#joy .stick{position:absolute; width:44px; height:44px; border-radius:50%; background:#e8b04b55; border:1px solid #e8b04b99; left:33px; top:33px; pointer-events:none;}
+#compass{bottom:calc(env(safe-area-inset-bottom,0px) + 16px); right:16px; width:200px; text-align:right; color:var(--dim); font-size:.66rem;}
+#flyBtns{position:fixed; z-index:6; bottom:calc(env(safe-area-inset-bottom,0px) + 44px); right:16px; display:flex; flex-direction:column; gap:10px;}
+#flyBtns button{width:54px; height:54px; border-radius:50%; background:#ffffff14; border:1px solid #ffffff40; color:#fff; font-size:1.1rem; touch-action:none;}
+#flash{position:fixed; inset:0; z-index:12; pointer-events:none; opacity:0; background:radial-gradient(circle,#ffffffcc,#ff7ad9aa 60%,#6a3dffaa);}
+#start{position:fixed; inset:0; z-index:30; background:#020208f5; display:flex; align-items:center; justify-content:center; padding:20px;}
+#start .box{max-width:440px; background:var(--card); border:1px solid #2a2f45; border-radius:14px; padding:26px 22px; text-align:center;}
+#start h2{color:var(--accent2); margin-bottom:12px; font-size:1.15rem;}
+#start p{color:var(--dim); font-size:.84rem; line-height:1.6; margin-bottom:16px;}
+button.primary{background:linear-gradient(135deg,#5b6c8a,#2f374f); border:none; color:#fff; padding:12px 22px; border-radius:9px; font-size:.95rem; cursor:pointer; font-family:inherit;}
+.overlay{position:fixed; inset:0; background:#020208f0; display:none; align-items:center; justify-content:center; z-index:20; padding:16px;}
+.overlay.show{display:flex;}
+.dialog{background:var(--card); border:1px solid #2a2f45; border-radius:12px; padding:22px; max-width:460px; width:100%; box-shadow:0 10px 40px #000c;}
+.dialog .scene{font-size:.94rem; line-height:1.7; margin-bottom:16px; color:var(--text);}
+.choices{display:flex; flex-direction:column; gap:9px;}
+button.choice{background:#171a2e; border:1px solid #2a2f45; border-radius:8px; color:var(--text); padding:10px 12px; font-family:inherit; font-size:.85rem; text-align:left; cursor:pointer;}
+button.choice:hover{background:#242945; border-color:var(--accent);}
+#loadbar{position:fixed; inset:0; z-index:40; background:#05060d; display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:.85rem; font-style:italic;}
+</style>
+</head>
+<body>
+<div id="loadbar">the city is assembling itself…</div>
+<canvas id="gl"></canvas>
+
+<div class="hud" id="title"><h1>DREAMWALKER 3D</h1><div class="sub">the dream has stopped pretending to make sense</div></div>
+<div class="hud" id="journal"><h3>Journal</h3><div id="journalBody"><span class="hint">Nothing recovered yet.</span></div></div>
+<div class="hud" id="guide"><h3>Guide</h3><div class="hint">Drag to orbit. WASD/pad to walk. SPACE floats you up (hold to fly), SHIFT sinks — rooftops hold you. Pink rings fold the city and teleport you. The dream shifts on its own. Six pillars hold memories. Blue figures talk (E).</div></div>
+<div class="hud" id="msg"></div>
+<div class="hud" id="prompt"><button onclick="talkToNearest()" id="promptBtn">talk</button></div>
+<div id="joy"><div class="stick" id="stick"></div></div>
+<div id="flyBtns"><button id="upBtn">▲</button><button id="dnBtn">▼</button></div>
+<div id="flash"></div>
+<div class="hud" id="compass">drag to orbit</div>
+
+<div id="start"><div class="box">
+  <h2>You wake at the edge of a real city, gone quiet.</h2>
+  <p>It's daylight, for now — and the dream is not behaving. There is a planet in the sky. The eyes up there are following you. Space floats you up, Shift sinks you, rooftops will hold you, and the pink rings fold the city in half. Six ruins still hold what you lost.</p>
+  <button class="primary" onclick="beginGame()">Enter the Dream</button>
+</div></div>
+
+<div class="overlay" id="overlay"><div class="dialog" id="dialogBox"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ---------- vast city grid ----------
+const COLS=40, ROWS=30, CELL=14;
+const map=[];
+for(let y=0;y<ROWS;y++){ let row=[];
+ for(let x=0;x<COLS;x++){
+  if(x===0||y===0||x===COLS-1||y===ROWS-1){ row.push('#'); continue; }
+  if(x%4===0 || y%4===0){ row.push('.'); continue; }
+  row.push(((x*31+y*17)%9===0)?'b':'B');
+ }
+ map.push(row);
+}
+// carve a plaza district near the heart of the city
+for(let y=20;y<=26;y++)for(let x=16;x<=24;x++){ map[y][x]='.'; }
+
+const POI_COORDS={0:[8,4],1:[24,4],2:[36,12],3:[4,20],4:[20,28],5:[32,20]};
+Object.entries(POI_COORDS).forEach(([k,[x,y]])=>{ map[y][x]=k; });
+map[16][20]='F';
+
+const DREAMS={
+ 0:{name:"Collapsed Cathedral", scene:"Pews are full of dust and pigeon bone. Stained glass throws colored light on nothing. A voice that isn't quite a voice asks what you still believe in, now that the building meant to hold belief has fallen.",
+  choices:[{label:"\"Something. I'm just not sure what yet.\"", frag:"Uncertainty isn't the absence of belief — it's belief still under construction."},
+           {label:"\"Whatever helped me get this far.\"", frag:"Faith doesn't have to aim at something grand. Sometimes it's just aimed at tomorrow morning."}]},
+ 1:{name:"Subway Entrance", scene:"The stairs go down into black. Warm air rises from somewhere with no trains left in it. Go down and see what's still running, or stay where you can see the sky.",
+  choices:[{label:"Go down into the dark", frag:"You don't have to know what's down there to survive going down. Courage is curiosity that kept walking."},
+           {label:"Stay where you can see the sky", frag:"Choosing your limits isn't weakness. Knowing what you're not ready for is its own self-knowledge."}]},
+ 2:{name:"Rooftop Garden", scene:"Someone planted this before the city emptied — vines through a dead satellite dish. Life kept growing long after anyone was left to tend it.",
+  choices:[{label:"Water it anyway, for no one", frag:"Meaning doesn't require an audience. Tending something quietly is still tending it."},
+           {label:"Take a seed and carry it with you", frag:"You don't have to save the whole garden. Carrying one seed forward still counts as continuing something."}]},
+ 3:{name:"Flooded Library", scene:"Every book has swollen shut, except one, open on a table like someone just stepped away. The page still readable has one sentence left, and it's about you.",
+  choices:[{label:"Read it and let it be true", frag:"Sometimes the story you needed was written before you got here. You're allowed to accept the sentence that finally makes sense."},
+           {label:"Close the book and write your own ending", frag:"No page gets to finish your sentence for you. The pen was always still in your hand."}]},
+ 4:{name:"Abandoned Hospital", scene:"A single monitor still beeps on backup power, keeping time for no patient. You realize you've been waiting here for something too.",
+  choices:[{label:"Stop waiting and walk back outside", frag:"Not every waiting room needs to be sat in until it's over. You're allowed to leave before you get the news."},
+           {label:"Sit with it a little longer", frag:"Some things deserve to be fully felt before you move on. Sitting with it isn't the same as being stuck in it."}]},
+ 5:{name:"Dead Park", scene:"Swings still move a little in wind with nowhere else to go. One tree, leafless, root-deep in cracked concrete, refuses the obvious ending.",
+  choices:[{label:"Sit under it anyway", frag:"You don't need proof of blooming to deserve rest."},
+           {label:"Ask it how it's still standing", frag:"Some things survive not because they're strong every day, but because they never fully decided to stop."}]}
+};
+const WHISPERS=["you're not lost, you're just early.","the city isn't empty. it's just resting.",
+ "you keep looking for an exit. try looking for a reason instead.","everyone who left here took a piece of the noise with them.",
+ "you already answered this question once. you just didn't believe yourself.","it's a long walk. that's the point, not the flaw.",
+ "some of us stayed because leaving felt like forgetting.","the birds didn't get the message that everyone left."];
+
+const NPCS=[
+ {gx:8,gy:16, name:"The Lamplighter", color:0xbfe0e8, lines:[
+   "I still do the rounds, even though nothing's left to light but me.",
+   "You get used to a city that doesn't answer back. Doesn't mean you stop talking to it.",
+   "Some nights I forget I'm the only one on this street. Those are the good nights."]},
+ {gx:28,gy:24, name:"The Mapmaker", color:0xe0c9a0, lines:[
+   "I keep redrawing the map. The streets don't move, but I do — so it's never quite finished.",
+   "Meaning is a lot like this map. You don't finish it, you just stop needing to.",
+   "Where are you headed? No wrong answer. Every direction here still counts as somewhere."]},
+ {gx:16,gy:8, name:"The Child Who Stayed", color:0xe8b0c9, lines:[
+   "Everyone left through the north gate. I just... didn't feel like it.",
+   "It's not scary once you stop expecting it to be different than it is.",
+   "I think the city stayed quiet on purpose. So whoever came back could finally hear themselves think."]},
+ {gx:32,gy:4, name:"The Night Watchman", color:0xa0c9e0, lines:[
+   "Nothing to watch for anymore. I still watch anyway. Habits outlive their reasons.",
+   "You collecting those gold lights? Careful — they tell the truth. Not everyone wants that.",
+   "Go on. The dark's not what's dangerous here. Standing still too long is."]}
+];
+
+function gridBlocked(gx,gy){ if(gy<0||gy>=ROWS||gx<0||gx>=COLS) return true; const c=map[gy][gx]; return c==='#'||c==='B'||c==='b'; }
+function toWorld(gx,gy){ return {x:(gx-COLS/2)*CELL, z:(gy-ROWS/2)*CELL}; }
+function toGrid(wx,wz){ return {x:Math.round(wx/CELL+COLS/2), y:Math.round(wz/CELL+ROWS/2)}; }
+function hash(x,y){ return (x*31+y*17)%97; }
+
+// ---------- three.js scene ----------
+let scene,camera,renderer,clock,skyMat,sunLight,ambientLight,rain,sunMesh;
+let visited={}, fragments=[], gameStarted=false, dialogOpen=false;
+const poiMeshes={}, shades=[], birds=[], npcMeshes=[], clouds=[];
+let towerMesh, buildingsMesh, dust, bobT=0, nearestNPC=null, playerMesh;
+let yaw=0.6, pitch=0.42;
+const keys={w:false,a:false,s:false,d:false,space:false,shift:false};
+const player={x:0,y:1.7,z:0};
+const CYCLE=210, START_OFFSET=0.25;
+const heightGrid=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+let alt=0, vy=0, dreamHue=0, shiftTimer=16, shiftActive=0, lowG=1, portalCD=0, curDay=1, neonPtr=0, finalCD=0;
+let skyDome, planetMesh, ringMesh, floaters, lanterns, neonMesh;
+const eyes=[], whales=[], portals=[], debris=[], aurora=[], floaterData=[], neonData=[];
+const _d=new THREE.Object3D(), tmpC=new THREE.Color();
+const SHIFT_LINES=["the dream shifts. gravity forgets itself.","the sky changes its mind.","somewhere, a door you never closed swings open.","the city exhales.","every eye in the sky blinks at once."];
+
+function makeSky(){
+ const g=new THREE.SphereGeometry(300,20,14);
+ const colors=[]; const pos=g.attributes.position;
+ for(let i=0;i<pos.count;i++){
+  const y=pos.getY(i)/300; const t=Math.max(0,Math.min(1,(y+1)/2));
+  const top=new THREE.Color(0x0a0d18), bot=new THREE.Color(0x2a2e50);
+  const c=bot.clone().lerp(top,t); colors.push(c.r,c.g,c.b);
+ }
+ g.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
+ skyMat=new THREE.MeshBasicMaterial({vertexColors:true, side:THREE.BackSide, fog:false});
+ skyDome=new THREE.Mesh(g,skyMat); scene.add(skyDome);
+
+ sunMesh=new THREE.Mesh(new THREE.SphereGeometry(8,14,14), new THREE.MeshBasicMaterial({color:0xfff2c8, fog:false, transparent:true, opacity:0.9}));
+ scene.add(sunMesh);
+
+ const cloudGeo=new THREE.PlaneGeometry(26,10);
+ for(let i=0;i<9;i++){
+  const m=new THREE.Mesh(cloudGeo, new THREE.MeshBasicMaterial({color:0xe8ecf5, transparent:true, opacity:0.2, fog:false}));
+  m.rotation.x=-Math.PI/2;
+  m.position.set((Math.random()-.5)*400, 55+Math.random()*20, (Math.random()-.5)*400);
+  scene.add(m);
+  clouds.push({mesh:m, speed:1+Math.random()*1.5});
+ }
+}
+
+function initScene(){
+ scene=new THREE.Scene();
+ scene.background=new THREE.Color(0x0a0c18);
+ scene.fog=new THREE.FogExp2(0x0a0c18, 0.011);
+ makeSky();
+
+ camera=new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.1, 460);
+ renderer=new THREE.WebGLRenderer({canvas:document.getElementById('gl'), antialias:true});
+ renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+ renderer.setSize(innerWidth, innerHeight);
+
+ ambientLight=new THREE.AmbientLight(0x33415e, 1.1); scene.add(ambientLight);
+ sunLight=new THREE.DirectionalLight(0x8fa4d0, 0.5); scene.add(sunLight);
+
+ const ground=new THREE.Mesh(new THREE.PlaneGeometry(COLS*CELL*1.6, ROWS*CELL*1.6),
+   new THREE.MeshStandardMaterial({color:0x15161f, roughness:1}));
+ ground.rotation.x=-Math.PI/2; ground.position.y=-0.02; scene.add(ground);
+
+ let cells=[];
+ const cx=COLS/2, cz=ROWS/2;
+ for(let y=1;y<ROWS-1;y++)for(let x=1;x<COLS-1;x++){
+  if(map[y][x]!=='B' && map[y][x]!=='b') continue;
+  const broken = map[y][x]==='b';
+  const dist=Math.hypot(x-cx,y-cz);
+  const hh=hash(x,y);
+  let type, h, foot, colors, hasTier;
+  if(broken){ type='ruin'; h=2+hh%3; foot=CELL*0.68; colors=[0x181414,0x1c1a16]; hasTier=false; }
+  else if(dist<9){ type='tower'; h=20+hh%24; foot=CELL*0.52; colors=[0x1c2436,0x223047,0x18202e,0x26324a]; hasTier=hh%3!==0; }
+  else if(dist<16){ type='midrise'; h=8+hh%9; foot=CELL*0.76; colors=[0x3a2620,0x33251d,0x2c2018,0x3f2b22]; hasTier=false; }
+  else { type='low'; h=4+hh%5; foot=CELL*0.86; colors=[0x22221d,0x28271f,0x1e1e1a]; hasTier=false; }
+  cells.push({x,y,type,h,foot,color:colors[hh%colors.length],hasTier});
+ }
+
+ const geo=new THREE.BoxGeometry(1,1,1);
+ buildingsMesh=new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({roughness:.9}), cells.length);
+ const capMesh=new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({roughness:.85}), cells.length);
+ const padMesh=new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({color:0x2c2e3a, roughness:1}), cells.length);
+ let tierCount=cells.filter(c=>c.hasTier).length;
+ const tierMesh=new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({roughness:.85}), Math.max(tierCount,1));
+ const dummy=new THREE.Object3D();
+ const flickerIdx=[]; const baseColors=[]; let tierI=0;
+ const watertowers=[];
+
+ cells.forEach((c,i)=>{
+  const w=toWorld(c.x,c.y);
+  dummy.position.set(w.x,c.h/2,w.z); dummy.scale.set(c.foot,c.h,c.foot); dummy.updateMatrix();
+  buildingsMesh.setMatrixAt(i,dummy.matrix);
+  const base=new THREE.Color(c.color);
+  buildingsMesh.setColorAt(i,base); baseColors.push(base);
+  if(hash(c.x+1,c.y+1)%11===0) flickerIdx.push(i);
+
+  dummy.position.set(w.x,c.h+0.3,w.z); dummy.scale.set(c.foot*1.08,0.6,c.foot*1.08); dummy.updateMatrix();
+  capMesh.setMatrixAt(i,dummy.matrix);
+  capMesh.setColorAt(i, base.clone().multiplyScalar(0.55));
+
+  dummy.position.set(w.x,0.06,w.z); dummy.scale.set(CELL*0.98,0.12,CELL*0.98); dummy.updateMatrix();
+  padMesh.setMatrixAt(i,dummy.matrix);
+
+  if(c.hasTier){
+   dummy.position.set(w.x,c.h+1.6,w.z); dummy.scale.set(c.foot*0.55,3,c.foot*0.55); dummy.updateMatrix();
+   tierMesh.setMatrixAt(tierI,dummy.matrix);
+   tierMesh.setColorAt(tierI, base.clone().multiplyScalar(1.2));
+   tierI++;
+  }
+  if((c.type==='midrise'||c.type==='low') && c.h>7 && hash(c.x,c.y+3)%7===0){
+   watertowers.push({x:w.x,y:c.h,z:w.z});
+  }
+ });
+ [buildingsMesh,capMesh,padMesh,tierMesh].forEach(m=>{ m.instanceMatrix.needsUpdate=true; m.frustumCulled=false; scene.add(m); });
+ buildingsMesh.userData={flicker:flickerIdx, base:baseColors};
+ cells.forEach(c=>{ heightGrid[c.y][c.x]=c.h+(c.hasTier?4:1); });
+
+ const tankMat=new THREE.MeshStandardMaterial({color:0x2a2a2e, roughness:.7});
+ watertowers.forEach(t=>{
+  const g=new THREE.Group();
+  const legs=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.5,1.6,6), tankMat);
+  const tank=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,1.8,10), tankMat); tank.position.y=1.9;
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(1.7,1,10), tankMat); roof.position.y=3.3;
+  g.add(legs,tank,roof); g.position.set(t.x,t.y+0.8,t.z); scene.add(g);
+ });
+
+ const winGeo=new THREE.PlaneGeometry(1.5,2);
+ const windows=new THREE.InstancedMesh(winGeo, new THREE.MeshBasicMaterial({vertexColors:true, fog:false}), cells.length);
+ cells.forEach((c,i)=>{
+  const w=toWorld(c.x,c.y);
+  const level=1+Math.floor(Math.random()*Math.max(1,(c.h/3)-1));
+  dummy.position.set(w.x+(Math.random()-.5)*c.foot*0.5, level*2.6, w.z+c.foot/2+0.05);
+  dummy.rotation.set(0,0,0); dummy.updateMatrix();
+  windows.setMatrixAt(i,dummy.matrix);
+  const lit=Math.random()<(c.type==='tower'?0.4:0.28);
+  windows.setColorAt(i, new THREE.Color(lit?0xe8b04b:0x0a0b12));
+ });
+ windows.instanceMatrix.needsUpdate=true; windows.frustumCulled=false; scene.add(windows);
+
+ const dashGeo=new THREE.PlaneGeometry(2,0.35);
+ let dashCoords=[];
+ for(let x=4;x<COLS-1;x+=4){ for(let y=2;y<ROWS-2;y+=3){ if(y%4!==0) dashCoords.push([x,y,0]); } }
+ for(let y=4;y<ROWS-1;y+=4){ for(let x=2;x<COLS-2;x+=3){ if(x%4!==0) dashCoords.push([x,y,Math.PI/2]); } }
+ const dashMesh=new THREE.InstancedMesh(dashGeo, new THREE.MeshBasicMaterial({color:0x555b70, fog:false}), dashCoords.length);
+ dashCoords.forEach(([x,y,rot],i)=>{
+  const w=toWorld(x,y);
+  dummy.position.set(w.x,0.03,w.z); dummy.rotation.set(-Math.PI/2,0,rot); dummy.scale.set(1,1,1); dummy.updateMatrix();
+  dashMesh.setMatrixAt(i,dummy.matrix);
+ });
+ dashMesh.instanceMatrix.needsUpdate=true; dashMesh.frustumCulled=false; scene.add(dashMesh);
+
+ const lampMat=new THREE.MeshStandardMaterial({color:0x1a1c28});
+ const lampGlowMat=new THREE.MeshStandardMaterial({color:0xe8b04b, emissive:0xe8b04b, emissiveIntensity:0.9});
+ for(let x=4;x<COLS-1;x+=8){ for(let y=2;y<ROWS-2;y+=6){
+  if(gridBlocked(x,y)) continue;
+  const w=toWorld(x,y);
+  const g=new THREE.Group();
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.14,4.4,6), lampMat); pole.position.y=2.2;
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.24,8,8), lampGlowMat); lamp.position.y=4.4;
+  g.add(pole,lamp); g.position.set(w.x+2.5,0,w.z+2.5); scene.add(g);
+ }}
+
+ // plaza trees + a dry fountain
+ const treeMat=new THREE.MeshStandardMaterial({color:0x3a3226});
+ for(let n=0;n<14;n++){
+  const gx=17+Math.floor(Math.random()*7), gy=21+Math.floor(Math.random()*5);
+  const w=toWorld(gx,gy);
+  const g=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.24,2.4,6), treeMat); trunk.position.y=1.2;
+  const crown=new THREE.Mesh(new THREE.ConeGeometry(1.1,2.4,7), new THREE.MeshStandardMaterial({color:0x2a3020}));
+  crown.position.y=3.2;
+  g.add(trunk,crown); g.position.set(w.x+(Math.random()-.5)*3,0,w.z+(Math.random()-.5)*3); scene.add(g);
+ }
+ const fw=toWorld(20,23.5);
+ const fountain=new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.6,0.6,14), new THREE.MeshStandardMaterial({color:0x2c2e3a}));
+ fountain.position.set(fw.x,0.3,fw.z); scene.add(fountain);
+
+ const carGeo=new THREE.BoxGeometry(2.2,1,4.2);
+ for(let n=0;n<34;n++){
+  const gx=2+Math.floor(Math.random()*(COLS-4)), gy=2+Math.floor(Math.random()*(ROWS-4));
+  if(map[gy] && map[gy][gx]==='.'){
+   const w=toWorld(gx,gy);
+   const car=new THREE.Mesh(carGeo, new THREE.MeshStandardMaterial({color:0x2a2418+((n%3)*0x040404), roughness:.8}));
+   car.position.set(w.x+(Math.random()-.5)*4,0.5,w.z+(Math.random()-.5)*4);
+   car.rotation.y=Math.random()*Math.PI;
+   scene.add(car);
+  }
+ }
+
+ const poiMat=(hex)=>new THREE.MeshStandardMaterial({color:hex, emissive:hex, emissiveIntensity:0.9});
+ Object.entries(POI_COORDS).forEach(([k,[gx,gy]])=>{
+  const w=toWorld(gx,gy);
+  const g=new THREE.Group();
+  const pillar=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.7,3.4,8), poiMat(0xe8b04b));
+  pillar.position.y=1.7;
+  const glow=new THREE.PointLight(0xe8b04b, 1.2, 16);
+  glow.position.y=2.4;
+  g.add(pillar,glow); g.position.set(w.x,0,w.z); scene.add(g);
+  poiMeshes[k]={group:g, mat:pillar.material, gx,gy};
+ });
+
+ const tw=toWorld(20,16);
+ towerMesh=new THREE.Group();
+ const spire=new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.7,16,10), new THREE.MeshStandardMaterial({color:0x1a1830, emissive:0x000000}));
+ spire.position.y=8;
+ const light=new THREE.PointLight(0xe8b04b,0,26); light.position.y=13;
+ towerMesh.add(spire,light); towerMesh.userData={light, spire};
+ towerMesh.position.set(tw.x,0,tw.z); scene.add(towerMesh);
+
+ const wanderStarts=[[8,8],[16,12],[12,4],[32,16],[24,24],[4,16],[36,28]];
+ wanderStarts.forEach(([gx,gy])=>{
+  const m=new THREE.Mesh(new THREE.SphereGeometry(0.4,10,10), new THREE.MeshStandardMaterial({color:0x7a8fae, emissive:0x7a8fae, emissiveIntensity:0.7, transparent:true, opacity:0.8}));
+  const w=toWorld(gx,gy); m.position.set(w.x,1.5,w.z); scene.add(m);
+  shades.push({mesh:m, gx, gy, t:Math.random()*10, mode:'wander'});
+ });
+ [[8,4],[20,28],[32,20]].forEach(([gx,gy])=>{
+  const m=new THREE.Mesh(new THREE.SphereGeometry(0.35,10,10), new THREE.MeshStandardMaterial({color:0xe0c9a0, emissive:0xe0c9a0, emissiveIntensity:0.6, transparent:true, opacity:0.75}));
+  const w=toWorld(gx,gy); m.position.set(w.x+3,1.4,w.z+3); scene.add(m);
+  shades.push({mesh:m, gx, gy, homeX:w.x+3, homeZ:w.z+3, t:Math.random()*10, mode:'watch'});
+ });
+
+ NPCS.forEach(npc=>{
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.4,1.3,8), new THREE.MeshStandardMaterial({color:npc.color, emissive:npc.color, emissiveIntensity:0.5, transparent:true, opacity:0.88}));
+  body.position.y=0.85;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.28,10,10), new THREE.MeshStandardMaterial({color:npc.color, emissive:npc.color, emissiveIntensity:0.55, transparent:true, opacity:0.9}));
+  head.position.y=1.7;
+  g.add(body,head);
+  const w=toWorld(npc.gx,npc.gy); g.position.set(w.x,0,w.z); scene.add(g);
+  npc.mesh=g; npc.talkIdx=0; npcMeshes.push(npc);
+ });
+
+ // the player's own visible body, seen from behind
+ playerMesh=new THREE.Group();
+ const pBody=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.36,1.1,8), new THREE.MeshStandardMaterial({color:0x2a2e42, roughness:.7}));
+ pBody.position.y=0.85;
+ const pHead=new THREE.Mesh(new THREE.SphereGeometry(0.24,10,10), new THREE.MeshStandardMaterial({color:0xd8c9b0, roughness:.8}));
+ pHead.position.y=1.55;
+ const pCloak=new THREE.Mesh(new THREE.ConeGeometry(0.42,0.9,8,1,true), new THREE.MeshStandardMaterial({color:0x1e2233, roughness:.9, side:THREE.DoubleSide}));
+ pCloak.position.y=0.55;
+ playerMesh.add(pBody,pHead,pCloak); scene.add(playerMesh);
+
+ const birdGeo=new THREE.ConeGeometry(0.5,1.6,4);
+ for(let i=0;i<9;i++){
+  const b=new THREE.Mesh(birdGeo, new THREE.MeshStandardMaterial({color:0x3a3f55}));
+  b.rotation.x=Math.PI/2; scene.add(b);
+  birds.push({mesh:b, r:60+Math.random()*130, speed:0.15+Math.random()*0.15, h:20+Math.random()*24, off:Math.random()*Math.PI*2});
+ }
+
+ const N=500, positions=new Float32Array(N*3);
+ for(let i=0;i<N;i++){ positions[i*3]=(Math.random()-.5)*90; positions[i*3+1]=Math.random()*14; positions[i*3+2]=(Math.random()-.5)*90; }
+ const dg=new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(positions,3));
+ dust=new THREE.Points(dg, new THREE.PointsMaterial({color:0x8a92ac, size:0.12, transparent:true, opacity:0.5}));
+ scene.add(dust);
+
+ const RN=700, rpos=new Float32Array(RN*3);
+ for(let i=0;i<RN;i++){ rpos[i*3]=(Math.random()-.5)*70; rpos[i*3+1]=Math.random()*30; rpos[i*3+2]=(Math.random()-.5)*70; }
+ const rg=new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rpos,3));
+ rain=new THREE.Points(rg, new THREE.PointsMaterial({color:0x9fb0d8, size:0.09, transparent:true, opacity:0.4}));
+ scene.add(rain);
+
+ buildCrazy();
+ const start=toWorld(4,24);
+ player.x=start.x; player.z=start.z;
+}
+
+
+function blockedFly(gx,gy){
+ if(gy<0||gy>=ROWS||gx<0||gx>=COLS) return true;
+ const c=map[gy][gx]; if(c==='#') return true;
+ if(c==='B'||c==='b') return alt<heightGrid[gy][gx]-0.05;
+ return false;
+}
+function flash(){
+ const f=document.getElementById('flash'); f.style.transition='none'; f.style.opacity='0.85';
+ requestAnimationFrame(()=>requestAnimationFrame(()=>{ f.style.transition='opacity 1.4s'; f.style.opacity='0'; }));
+}
+function teleport(i){
+ let j=Math.floor(Math.random()*portals.length); if(j===i) j=(j+1)%portals.length;
+ player.x=portals[j].x+4; player.z=portals[j].z; portalCD=2.5; shiftActive=Math.max(shiftActive,5);
+ flash(); showMsg("the dream folds in on itself…");
+}
+
+function buildCrazy(){
+ // ringed planet hanging over everything
+ planetMesh=new THREE.Mesh(new THREE.SphereGeometry(45,28,20), new THREE.MeshBasicMaterial({color:0xcaa8ff, fog:false}));
+ ringMesh=new THREE.Mesh(new THREE.RingGeometry(66,92,56), new THREE.MeshBasicMaterial({color:0xffc9a8, side:THREE.DoubleSide, transparent:true, opacity:0.55, fog:false}));
+ ringMesh.rotation.set(1.15,0.4,0);
+ scene.add(planetMesh, ringMesh);
+
+ // giant eyes that follow you
+ const eyeWhite=new THREE.MeshBasicMaterial({color:0xf4f0ff, fog:false});
+ const irisMat=new THREE.MeshBasicMaterial({color:0xff4fa8, fog:false});
+ const pupilMat=new THREE.MeshBasicMaterial({color:0x10061c, fog:false});
+ [[-90,70,-60],[110,85,40],[10,95,150]].forEach(b=>{
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(12,20,16),eyeWhite));
+  const iris=new THREE.Mesh(new THREE.SphereGeometry(6.2,16,12),irisMat); iris.position.z=8.2; g.add(iris);
+  const pupil=new THREE.Mesh(new THREE.SphereGeometry(3.2,12,10),pupilMat); pupil.position.z=11.2; g.add(pupil);
+  g.userData.base=b; scene.add(g); eyes.push(g);
+ });
+
+ // upside-down floating towers
+ floaters=new THREE.InstancedMesh(new THREE.ConeGeometry(4,16,5), new THREE.MeshBasicMaterial(), 40);
+ for(let i=0;i<40;i++){
+  const a=Math.random()*Math.PI*2, r=40+Math.random()*190;
+  floaterData.push({x:Math.cos(a)*r, y:45+Math.random()*80, z:Math.sin(a)*r*0.8, s:0.6+Math.random()*1.4, ph:Math.random()*6.28, sp:0.2+Math.random()*0.4});
+  floaters.setColorAt(i, new THREE.Color().setHSL(Math.random(),0.8,0.55));
+ }
+ floaters.frustumCulled=false; scene.add(floaters);
+
+ // aurora ribbons
+ for(let i=0;i<4;i++){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(300,60,30,1), new THREE.MeshBasicMaterial({color:0x55ffcc, transparent:true, opacity:0.3, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}));
+  m.userData={a:i*Math.PI/2+0.4, off:Math.random()*6}; m.frustumCulled=false;
+  scene.add(m); aurora.push(m);
+ }
+
+ // sky whales
+ for(let i=0;i<2;i++){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({color:i?0x3a8f9f:0x7a4fa0, emissive:i?0x0f3a44:0x2a1244, roughness:.6});
+  const body=new THREE.Mesh(new THREE.SphereGeometry(1,18,12),mat); body.scale.set(16,5.5,5.5);
+  const tail=new THREE.Mesh(new THREE.ConeGeometry(3,14,8),mat); tail.rotation.z=Math.PI/2; tail.position.x=-20;
+  const fluke=new THREE.Mesh(new THREE.BoxGeometry(3,0.8,12),mat); fluke.position.x=-28;
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.7,8,8),new THREE.MeshBasicMaterial({color:0xffee88})); eye.position.set(11,1.4,4.2);
+  g.add(body,tail,fluke,eye); scene.add(g);
+  whales.push({g,fluke,r:90+i*60,sp:0.05+i*0.03,h:60+i*18,off:i*3});
+ }
+
+ // debris ring orbiting the spire
+ for(let i=0;i<26;i++){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.2,1.2), new THREE.MeshStandardMaterial({color:0x6a5a3a, emissive:0x3a2a10}));
+  scene.add(m); debris.push({m,a:i*1.2,r:8+(i%3)*2.5,h:6+(i%7)*2});
+ }
+
+ // lanterns rising the wrong way
+ const LN=260, lp=new Float32Array(LN*3);
+ for(let i=0;i<LN;i++){ lp[i*3]=(Math.random()-.5)*80; lp[i*3+1]=Math.random()*40; lp[i*3+2]=(Math.random()-.5)*80; }
+ const lg=new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(lp,3));
+ lanterns=new THREE.Points(lg, new THREE.PointsMaterial({color:0xffb070, size:0.7, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false}));
+ lanterns.frustumCulled=false; scene.add(lanterns);
+
+ // neon signs rippling rainbow across the city
+ let nd=[];
+ for(let y=1;y<ROWS-1;y++)for(let x=1;x<COLS-1;x++){
+  const c=map[y][x]; if((c!=='B'&&c!=='b')||heightGrid[y][x]<5||hash(x,y)%2) continue;
+  const hv=heightGrid[y][x]; const half=(hv>=21?0.26:(hv>=9.5?0.38:0.43))*CELL+0.15;
+  nd.push({x,y,hv,half,h:(hash(x,y)%20)/20});
+ }
+ neonMesh=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({side:THREE.DoubleSide, fog:false}), nd.length);
+ nd.forEach((d,i)=>{
+  const w=toWorld(d.x,d.y);
+  _d.position.set(w.x+d.half, Math.min(d.hv-2,4+d.hv*0.5), w.z+((hash(d.x,d.y+5)%7)-3));
+  _d.rotation.set(0,Math.PI/2,0); _d.scale.set(4+(d.hv%3),1.1,1); _d.updateMatrix();
+  neonMesh.setMatrixAt(i,_d.matrix); neonMesh.setColorAt(i,tmpC.setHSL(d.h,1,0.55)); neonData.push(d);
+ });
+ neonMesh.frustumCulled=false; scene.add(neonMesh);
+
+ // pink portal rings
+ [[12,8],[28,8],[12,24],[28,16],[8,12],[36,28]].forEach(([gx,gy])=>{
+  const w=toWorld(gx,gy); const g=new THREE.Group();
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(3.2,0.28,10,36), new THREE.MeshBasicMaterial({color:0xff6ad5}));
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(3,32), new THREE.MeshBasicMaterial({color:0x66e0ff, transparent:true, opacity:0.45, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false}));
+  g.add(ring,disc); g.position.set(w.x,3.6,w.z); scene.add(g);
+  portals.push({g,ring,disc,x:w.x,z:w.z});
+ });
+}
+
+function updateCrazy(dt,et){
+ const px=player.x, pz=player.z;
+ finalCD-=dt;
+ skyDome.position.set(px,0,pz);
+ planetMesh.position.set(px-100,80,pz-140); ringMesh.position.copy(planetMesh.position);
+ planetMesh.material.color.setHSL((0.75+dreamHue)%1,0.6,0.72);
+
+ // dream shifts: hue storms, wobbling fov, floaty gravity
+ if(gameStarted && !dialogOpen){
+  shiftTimer-=dt;
+  if(shiftTimer<=0){ shiftTimer=24+Math.random()*18; shiftActive=9; flash(); showMsg(SHIFT_LINES[Math.floor(Math.random()*SHIFT_LINES.length)]); }
+ }
+ if(shiftActive>0) shiftActive-=dt;
+ dreamHue=(dreamHue+dt*(0.008+(shiftActive>0?0.2:0)))%1;
+ lowG=shiftActive>0?0.25:1;
+ camera.fov=62+(shiftActive>0?Math.sin(et*4)*7:0); camera.updateProjectionMatrix();
+
+ eyes.forEach((g,i)=>{ const b=g.userData.base; g.position.set(px+b[0], b[1]+Math.sin(et*0.5+i)*3, pz+b[2]); g.lookAt(camera.position); });
+
+ floaterData.forEach((f,i)=>{
+  _d.position.set(f.x, f.y+Math.sin(et*f.sp+f.ph)*4, f.z); _d.rotation.set(Math.PI, et*f.sp*0.5, 0); _d.scale.setScalar(f.s); _d.updateMatrix();
+  floaters.setMatrixAt(i,_d.matrix);
+ });
+ floaters.instanceMatrix.needsUpdate=true;
+
+ aurora.forEach((m,i)=>{
+  const a=m.userData.a+et*0.01;
+  m.position.set(px+Math.cos(a)*180, 110+Math.sin(et*0.2+i)*8, pz+Math.sin(a)*180); m.lookAt(px,110,pz);
+  const pos=m.geometry.attributes.position;
+  for(let v=0;v<pos.count;v++) pos.setZ(v, Math.sin(pos.getX(v)*0.035+et*0.7+m.userData.off)*16 + Math.sin(pos.getY(v)*0.2+et)*3);
+  pos.needsUpdate=true;
+  m.material.color.setHSL((et*0.04+i*0.2+dreamHue)%1,0.9,0.55); m.material.opacity=0.16+0.3*(1-curDay);
+ });
+
+ whales.forEach(w=>{
+  const a=et*w.sp+w.off;
+  w.g.position.set(Math.cos(a)*w.r, w.h+Math.sin(et*0.3+w.off)*5, Math.sin(a)*w.r*0.8);
+  w.g.rotation.y=-a-Math.PI/2; w.g.rotation.z=Math.sin(et*0.8)*0.08; w.fluke.position.y=Math.sin(et*2)*1.5;
+ });
+
+ const tp=towerMesh.position;
+ debris.forEach(d=>{
+  const a=et*0.5+d.a;
+  d.m.position.set(tp.x+Math.cos(a)*d.r, d.h+Math.sin(et+d.a)*1.2, tp.z+Math.sin(a)*d.r);
+  d.m.rotation.x+=dt; d.m.rotation.y+=dt*0.7;
+ });
+
+ const lp=lanterns.geometry.attributes.position;
+ for(let i=0;i<lp.count;i++){
+  let y=lp.getY(i)+dt*(1.2+(i%5)*0.3); if(y>40) y=0;
+  lp.setY(i,y); lp.setX(i, lp.getX(i)+Math.sin(et*0.7+i)*dt*0.4);
+ }
+ lp.needsUpdate=true; lanterns.position.set(px,Math.max(0,alt-8),pz);
+
+ const n=neonData.length;
+ if(n){
+  for(let k=0;k<40;k++){ neonPtr=(neonPtr+1)%n; const d=neonData[neonPtr]; neonMesh.setColorAt(neonPtr, tmpC.setHSL((d.h+et*0.07+dreamHue)%1,1,0.55)); }
+  neonMesh.instanceColor.needsUpdate=true;
+ }
+
+ portalCD-=dt;
+ portals.forEach((p,i)=>{
+  p.g.rotation.y+=dt*0.6; p.g.position.y=3.6+Math.sin(et*1.3+i)*0.3;
+  p.disc.material.color.setHSL((et*0.1+i*0.17+dreamHue)%1,0.9,0.6);
+  p.ring.material.color.setHSL((0.85+dreamHue+i*0.05)%1,0.9,0.62);
+  if(gameStarted && !dialogOpen && portalCD<=0 && alt<9 && Math.hypot(px-p.x,pz-p.z)<2.6) teleport(i);
+ });
+}
+
+function updateCycle(et){
+ const t=((et/CYCLE)+START_OFFSET)%1, ang=t*Math.PI*2;
+ const dir=new THREE.Vector3(Math.cos(ang)*160, Math.sin(ang)*140+20, Math.sin(ang*0.6)*80);
+ sunLight.position.copy(dir);
+ sunMesh.position.set(dir.x+player.x,dir.y,dir.z+player.z);
+ const dayFactor=Math.max(0,Math.sin(ang));
+ sunMesh.material.opacity=0.15+dayFactor*0.85;
+ sunLight.intensity=0.3+dayFactor*1.1;
+ const nightC=new THREE.Color(0x8fa4d0), dayC=new THREE.Color(0xfff0d0);
+ sunLight.color.copy(nightC).lerp(dayC,dayFactor);
+ skyMat.color.copy(new THREE.Color(0x232746)).lerp(new THREE.Color(0x8fc4ec), dayFactor); skyMat.color.offsetHSL(dreamHue,0.25,0);
+ const fogC=new THREE.Color(0x0a0c18).lerp(new THREE.Color(0xaebfdc), dayFactor*0.85); fogC.offsetHSL(dreamHue,0.3,0);
+ scene.fog.color.copy(fogC); scene.background.copy(fogC);
+ scene.fog.density=0.011-dayFactor*0.005;
+ ambientLight.intensity=0.8+dayFactor*0.7;
+ ambientLight.color.copy(nightC).lerp(new THREE.Color(0xffffff),dayFactor*0.5);
+ rain.material.opacity=0.4-dayFactor*0.3;
+ clouds.forEach(c=>{ c.mesh.material.opacity=0.08+dayFactor*0.28; });
+ curDay=dayFactor; return dayFactor;
+}
+
+// ---------- input ----------
+let dragging=false, lastX=0,lastY=0;
+const gl=document.getElementById('gl');
+function pd(e){ if(!gameStarted||dialogOpen) return; dragging=true; const p=e.touches?e.touches[0]:e; lastX=p.clientX; lastY=p.clientY; }
+function pm(e){ if(!dragging) return; const p=e.touches?e.touches[0]:e; const dx=p.clientX-lastX, dy=p.clientY-lastY; lastX=p.clientX; lastY=p.clientY;
+ yaw-=dx*0.004; pitch+=dy*0.003; pitch=Math.max(0.08,Math.min(1.15,pitch)); }
+function pu(){ dragging=false; }
+gl.addEventListener('mousedown',pd); gl.addEventListener('mousemove',pm); addEventListener('mouseup',pu);
+gl.addEventListener('touchstart',pd,{passive:true}); gl.addEventListener('touchmove',pm,{passive:true}); gl.addEventListener('touchend',pu);
+
+addEventListener('keydown',e=>{ const k=e.key===' '?'space':e.key.toLowerCase(); if(k in keys) keys[k]=true; if(k==='space') e.preventDefault(); if(k==='escape') closeDialog(); if(k==='e') talkToNearest(); });
+addEventListener('keyup',e=>{ const k=e.key===' '?'space':e.key.toLowerCase(); if(k in keys) keys[k]=false; });
+
+const upB=document.getElementById('upBtn'), dnB=document.getElementById('dnBtn');
+upB.addEventListener('pointerdown',e=>{ keys.space=true; e.preventDefault(); });
+dnB.addEventListener('pointerdown',e=>{ keys.shift=true; e.preventDefault(); });
+['pointerup','pointercancel','pointerleave'].forEach(ev=>{ upB.addEventListener(ev,()=>keys.space=false); dnB.addEventListener(ev,()=>keys.shift=false); });
+const joy=document.getElementById('joy'), stick=document.getElementById('stick');
+let joyVec={x:0,y:0}, joyActive=false, joyId=null;
+function joyStart(e){ joyActive=true; joyId=e.pointerId; joy.setPointerCapture(e.pointerId); }
+function joyMove(e){ if(!joyActive||e.pointerId!==joyId) return; const r=joy.getBoundingClientRect();
+ let dx=(e.clientX-(r.left+r.width/2))/(r.width/2), dy=(e.clientY-(r.top+r.height/2))/(r.height/2);
+ const len=Math.hypot(dx,dy); if(len>1){dx/=len; dy/=len;} joyVec={x:dx,y:dy};
+ stick.style.left=(33+dx*22)+'px'; stick.style.top=(33+dy*22)+'px'; }
+function joyEnd(){ joyActive=false; joyVec={x:0,y:0}; stick.style.left='33px'; stick.style.top='33px'; }
+joy.addEventListener('pointerdown',joyStart); joy.addEventListener('pointermove',joyMove);
+joy.addEventListener('pointerup',joyEnd); joy.addEventListener('pointercancel',joyEnd);
+
+// ---------- game logic ----------
+let msgTimer=null;
+function showMsg(t){ document.getElementById('msg').textContent=t; clearTimeout(msgTimer); msgTimer=setTimeout(()=>document.getElementById('msg').textContent="",3200); }
+function renderJournal(){
+ document.getElementById('journalBody').innerHTML = fragments.length
+  ? fragments.map(f=>`<div class="frag">"${f}"</div>`).join("")
+  : `<span class="hint">Nothing recovered yet.</span>`;
+}
+function allFound(){ return Object.keys(DREAMS).every(k=>visited[k]); }
+function openDialog(html){ dialogOpen=true; document.getElementById('dialogBox').innerHTML=html; document.getElementById('overlay').classList.add('show'); }
+function closeDialog(){ dialogOpen=false; finalCD=2.5; document.getElementById('overlay').classList.remove('show'); }
+
+function enterDream(id){
+ const d=DREAMS[id];
+ openDialog(`<div class="scene"><strong style="color:var(--accent2)">${d.name}</strong><br><br>${d.scene}</div>
+ <div class="choices">${d.choices.map((c,i)=>`<button class="choice" onclick="chooseFrag('${id}',${i})">${c.label}</button>`).join("")}</div>`);
+}
+function chooseFrag(id,i){
+ const frag=DREAMS[id].choices[i].frag;
+ visited[id]=true; fragments.push(frag); renderJournal();
+ poiMeshes[id].mat.color.set(0x3a3f5a); poiMeshes[id].mat.emissive.set(0x3a3f5a); poiMeshes[id].mat.emissiveIntensity=0.3;
+ openDialog(`<div class="scene">${frag}</div><button class="primary" onclick="closeDialog()">Continue</button>`);
+}
+function enterFinal(){
+ if(!allFound()){ openDialog(`<div class="scene">The spire is dark. It seems to be waiting for pieces you haven't recovered yet — this city is big, keep walking.</div><button class="primary" onclick="closeDialog()">Step back</button>`); return; }
+ openDialog(`<div class="scene">The spire's light comes on for the first time since you arrived. From here the whole vast city is visible — rooftops for miles, and it doesn't look empty anymore, just quiet, the way a room looks right after someone finishes saying something important.<br><br>
+ ${fragments.map(f=>`<span style="color:var(--accent2);font-style:italic;">"${f}"</span>`).join(" · ")}<br><br>
+ Maybe the city was never abandoned. Maybe it was just vast enough that you had to walk it slowly, and slowness was the whole point.</div>
+ <button class="primary" onclick="location.reload()">Wake and Walk Again</button>`);
+}
+function talkToNearest(){
+ if(!nearestNPC || dialogOpen) return;
+ const npc=nearestNPC;
+ const line=npc.lines[npc.talkIdx % npc.lines.length];
+ npc.talkIdx++;
+ openDialog(`<div class="scene"><strong style="color:var(--accent2)">${npc.name}</strong><br><br>"${line}"</div><button class="primary" onclick="closeDialog()">...</button>`);
+}
+function beginGame(){ document.getElementById('start').style.display='none'; gameStarted=true; }
+
+function tryStep(nx,nz){
+ const g=toGrid(nx,player.z); if(!blockedFly(g.x,g.y)) player.x=nx;
+ const g2=toGrid(player.x,nz); if(!blockedFly(g2.x,g2.y)) player.z=nz;
+}
+
+function animate(){
+ requestAnimationFrame(animate);
+ const dt=Math.min(clock.getDelta(),0.06);
+ const et=clock.elapsedTime;
+ updateCycle(et); updateCrazy(dt,et);
+
+ if(gameStarted && !dialogOpen){
+  const speed=10*dt*(alt>3?1.9:1);
+  let mx=(keys.d?1:0)-(keys.a?1:0)+joyVec.x;
+  let mz=(keys.s?1:0)-(keys.w?1:0)+joyVec.y;
+  const len=Math.hypot(mx,mz); let moving=false;
+  if(len>0.05){
+   moving=true; mx/=len||1; mz/=len||1;
+   const fwd={x:Math.sin(yaw), z:Math.cos(yaw)};
+   const right={x:Math.cos(yaw), z:-Math.sin(yaw)};
+   const moveX=(fwd.x*-mz + right.x*mx), moveZ=(fwd.z*-mz + right.z*mx);
+   tryStep(player.x + moveX*speed, player.z + moveZ*speed);
+   playerMesh.rotation.y = Math.atan2(moveX, moveZ);
+  }
+  bobT += moving ? dt*9 : dt*2;
+  if(keys.space) vy=Math.min(vy+34*dt,11);
+  else if(keys.shift) vy=Math.max(vy-34*dt,-14);
+  else vy=Math.max(vy-14*lowG*dt,-9*(0.3+0.7*lowG));
+  alt+=vy*dt;
+  let fh=0;
+  { const gc=toGrid(player.x,player.z);
+    if(gc.y>=0&&gc.y<ROWS&&gc.x>=0&&gc.x<COLS){ const cc=map[gc.y][gc.x]; if(cc==='B'||cc==='b') fh=heightGrid[gc.y][gc.x]; } }
+  if(alt<=fh){ alt=fh; if(vy<0) vy=0; }
+  if(alt>150){ alt=150; vy=0; }
+  const grounded = alt<=fh+0.02;
+  playerMesh.position.set(player.x, alt+((moving&&grounded)?Math.abs(Math.sin(bobT))*0.08:0), player.z);
+
+  // third-person orbit camera behind the player
+  const camDist=7.5;
+  const dirX=Math.sin(yaw)*Math.cos(pitch), dirZ=Math.cos(yaw)*Math.cos(pitch), dirY=Math.sin(pitch);
+  camera.position.set(player.x - dirX*camDist, Math.max(0.6, alt + 1.0 + dirY*camDist), player.z - dirZ*camDist);
+  camera.lookAt(player.x, alt+1.6, player.z);
+
+  Object.entries(poiMeshes).forEach(([k,p])=>{
+   const dx=player.x-p.group.position.x, dz=player.z-p.group.position.z;
+   if(!visited[k] && Math.hypot(dx,dz)<3.2 && alt<8) enterDream(k);
+  });
+  const dtx=player.x-towerMesh.position.x, dtz=player.z-towerMesh.position.z;
+  if(Math.hypot(dtx,dtz)<4.2 && alt<14 && finalCD<=0) enterFinal();
+
+  shades.forEach(s=>{
+   s.t+=dt;
+   if(s.mode==='wander'){
+    s.mesh.position.y=1.5+Math.sin(s.t*1.4)*0.25;
+    if(Math.random()<0.003){
+     const dirs=[[0,1],[0,-1],[1,0],[-1,0]]; const [ddx,ddy]=dirs[Math.floor(Math.random()*4)];
+     if(!gridBlocked(s.gx+ddx,s.gy+ddy)){ s.gx+=ddx; s.gy+=ddy; const w=toWorld(s.gx,s.gy); s.mesh.userData.tx=w.x; s.mesh.userData.tz=w.z; }
+    }
+    if(s.mesh.userData.tx!==undefined){
+     s.mesh.position.x+=(s.mesh.userData.tx-s.mesh.position.x)*0.02;
+     s.mesh.position.z+=(s.mesh.userData.tz-s.mesh.position.z)*0.02;
+    }
+   } else {
+    s.mesh.position.x=s.homeX+Math.sin(s.t*0.6)*1.4;
+    s.mesh.position.z=s.homeZ+Math.cos(s.t*0.5)*1.4;
+    s.mesh.position.y=1.4+Math.sin(s.t*1.1)*0.2;
+   }
+   const sd=Math.hypot(player.x-s.mesh.position.x, player.z-s.mesh.position.z);
+   if(sd<3 && Math.random()<0.01) showMsg('a shade drifts close: "'+WHISPERS[Math.floor(Math.random()*WHISPERS.length)]+'"');
+  });
+
+  nearestNPC=null; let bestD=2.6;
+  npcMeshes.forEach(npc=>{
+   npc.mesh.position.y=Math.sin(et*1.2+npc.gx)*0.05;
+   const d=Math.hypot(player.x-npc.mesh.position.x, player.z-npc.mesh.position.z);
+   if(d<bestD && alt<6){ bestD=d; nearestNPC=npc; }
+  });
+  document.getElementById('prompt').style.display=nearestNPC?'block':'none';
+  if(nearestNPC) document.getElementById('promptBtn').textContent='talk to '+nearestNPC.name;
+
+  birds.forEach(b=>{
+   const a=et*b.speed+b.off;
+   b.mesh.position.set(Math.cos(a)*b.r, b.h+Math.sin(et*0.4+b.off)*3, Math.sin(a)*b.r);
+   b.mesh.rotation.y=-a+Math.PI/2;
+  });
+  clouds.forEach(c=>{ c.mesh.position.x+=c.speed*dt; if(c.mesh.position.x>220) c.mesh.position.x=-220; });
+
+  const dp=dust.geometry.attributes.position;
+  for(let i=0;i<dp.count;i++){ let y=dp.getY(i)-dt*0.3; if(y<0) y=14; dp.setY(i,y); }
+  dp.needsUpdate=true; dust.position.set(player.x,Math.max(0,alt-7),player.z);
+
+  const rp=rain.geometry.attributes.position;
+  for(let i=0;i<rp.count;i++){
+   let y=rp.getY(i)-dt*22; let x=rp.getX(i)+dt*1.5;
+   if(y<0){ y=30; } if(x>35) x=-35;
+   rp.setY(i,y); rp.setX(i,x);
+  }
+  rp.needsUpdate=true; rain.position.set(player.x,Math.max(0,alt-10),player.z);
+
+  if(buildingsMesh.userData.flicker.length && Math.random()<0.06){
+   const arr=buildingsMesh.userData.flicker; const pick=Math.floor(Math.random()*arr.length); const idx=arr[pick];
+   const warm=Math.random()<0.5;
+   buildingsMesh.setColorAt(idx, warm? new THREE.Color(0x3a2f1a) : buildingsMesh.userData.base[pick]);
+   buildingsMesh.instanceColor.needsUpdate=true;
+  }
+
+  towerMesh.userData.light.intensity = allFound() ? 1.8+Math.sin(et*2)*0.3 : 0;
+  towerMesh.userData.spire.material.emissive.set(allFound()?0xe8b04b:0x000000);
+  towerMesh.userData.spire.material.emissiveIntensity = allFound()?0.6:0;
+
+  const found=Object.keys(visited).length;
+  document.getElementById('compass').textContent = found+" / 6 found · alt "+Math.round(alt)+" · drag to orbit";
+ }
+ renderer.render(scene,camera);
+}
+
+function onResize(){ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); }
+addEventListener('resize', onResize);
+
+clock=new THREE.Clock();
+initScene();
+renderJournal();
+document.getElementById('loadbar').style.display='none';
+animate();
+</script>
+</body>
+</html>
