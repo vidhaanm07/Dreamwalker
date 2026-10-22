@@ -11,7 +11,7 @@ Once deployed with GitHub Pages: `https://<vidhaanm07>.github.io/dreamwalker/`
 Or run it locally:
 
 ```bash
-git clone https://github.com/<your-username>/dreamwalker.git
+git clone https://github.com/<vidhaanm07>/dreamwalker.git
 cd dreamwalker
 python3 -m http.server 8000
 # open http://localhost:8000
