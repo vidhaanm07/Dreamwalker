@@ -6,16 +6,7 @@ A surreal, open-world 3D dream game that runs entirely in your browser. You wake
 
 ## ▶️ Play
 
-Once deployed with GitHub Pages: `https://<vidhaanm07>.github.io/dreamwalker/`
-
-Or run it locally:
-
-```bash
-git clone https://github.com/<vidhaanm07>/dreamwalker.git
-cd dreamwalker
-python3 -m http.server 8000
-# open http://localhost:8000
-```
+https://dreamwalkerio.vercel.app/
 
 ## 🎮 Controls
 
