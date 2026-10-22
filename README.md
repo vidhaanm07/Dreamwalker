@@ -52,15 +52,6 @@ Everything is in `index.html`. Useful knobs near the top of the script:
 | Dream-shift messages | `SHIFT_LINES` |
 | Portal locations | `buildCrazy()` portal list |
 
-## 🚀 Deploy to GitHub Pages
-
-This repo includes a workflow at `.github/workflows/pages.yml`. To enable it:
-
-1. Push to the `main` branch.
-2. Go to **Settings → Pages**.
-3. Under **Build and deployment → Source**, choose **GitHub Actions**.
-4. Every push to `main` deploys automatically.
-
 ## 🧰 Tech
 
 - [Three.js r128](https://threejs.org/) (loaded from cdnjs)
